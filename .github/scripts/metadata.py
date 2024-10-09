@@ -34,10 +34,10 @@ def extract_public_methods(file_content):
 
 def extract_join_map(file_content):
     join_pattern = re.compile(
-        r'public\s+JoinDataComplete\s+(\w+)\s*=\s*new\s+JoinDataComplete\([^)]*\)\s*{[^}]*Description\s*=\s*"([^"]+)"[^}]*JoinType\s*=\s*eJoinType\.(\w+)[^}]*JoinNumber\s*=\s*(\d+)', 
+        r'public\s+JoinDataComplete\s+(\w+)\s*=\s*new\s+JoinDataComplete\([^)]*\)\s*{[^}]*Description\s*=\s*"([^"]+)"[^}]*JoinType\s*=\s*eJoinType\.(\w+)[^}]*JoinNumber\s*=\s*(\d+)',
         re.DOTALL
     )
-    
+
     joins = []
     for join_name, description, join_type, join_number in join_pattern.findall(file_content):
         joins.append({
@@ -91,7 +91,7 @@ def find_joinmap_classes(class_names):
 def read_class_names_from_files(directory):
     class_names = []
     class_pattern = re.compile(r'^\s*(?:\[[^\]]+\]\s*)*(?:public\s+|private\s+|protected\s+)?class\s+([A-Za-z_]\w*)\b', re.MULTILINE)
-    
+
     for root, _, files in os.walk(directory):
         for file in files:
             if file.endswith('.cs'):
@@ -136,9 +136,9 @@ def parse_joinmap_info(class_name, root_directory):
 
     return joinmap_info
 
-def generate_markdown_chart(joins):
-    markdown_chart = ""
-    
+def generate_markdown_chart(joins, section_title):
+    markdown_chart = f'### {section_title}\n\n'
+
     # Digitals
     markdown_chart += "#### Digitals\n\n"
     markdown_chart += "| Join | Type (RW) | Description |\n"
@@ -146,7 +146,7 @@ def generate_markdown_chart(joins):
     for join in joins:
         if join["type"] == "Digital":
             markdown_chart += f"| {join['join_number']} | R | {join['description']} |\n"
-    
+
     # Analogs
     markdown_chart += "\n#### Analogs\n\n"
     markdown_chart += "| Join | Type (RW) | Description |\n"
@@ -154,7 +154,7 @@ def generate_markdown_chart(joins):
     for join in joins:
         if join["type"] == "Analog":
             markdown_chart += f"| {join['join_number']} | R | {join['description']} |\n"
-    
+
     # Serials
     markdown_chart += "\n#### Serials\n\n"
     markdown_chart += "| Join | Type (RW) | Description |\n"
@@ -165,20 +165,24 @@ def generate_markdown_chart(joins):
     return markdown_chart
 
 def generate_config_example_markdown(sample_config):
-    markdown = ""
+    markdown = "### Config Example\n\n"
     markdown += "```json\n"
     markdown += json.dumps(sample_config, indent=4)
     markdown += "\n```\n"
     return markdown
 
-def generate_markdown_list(items):
+def generate_markdown_list(items, section_title):
     """
-    Generates a list of items in markdown format.
-    
+    Generates a markdown header and list of items.
+
+    Parameters:
+    - items (list): The list of items to include.
+    - section_title (str): The header for the section.
+
     Returns:
-    - str: The markdown content.
+    - str: The markdown content with the section header.
     """
-    markdown = ''
+    markdown = f'### {section_title}\n\n'
     for item in items:
         markdown += f"- {item}\n"
     markdown += '\n'
@@ -301,7 +305,7 @@ def generate_sample_value(property_type, class_defs, processed_classes=None):
         processed_classes.remove(property_type)
         return sample_obj
     else:
-        # Unknown type, default to None or string
+        # Unknown type, default to a sample value
         return "SampleValue"
 
 def generate_sample_config(config_class_name, class_defs, supported_types):
@@ -318,13 +322,6 @@ def generate_sample_config(config_class_name, class_defs, supported_types):
     }
     return config
 
-def generate_config_example_markdown(sample_config):
-    markdown = "### Config Example:\n\n"
-    markdown += "```json\n"
-    markdown += json.dumps(sample_config, indent=4)
-    markdown += "\n```\n"
-    return markdown
-
 def read_readme_file(filepath):
     if not os.path.exists(filepath):
         print(f"README.md file not found at {filepath}. A new file will be created.")
@@ -335,14 +332,14 @@ def read_readme_file(filepath):
 def update_readme_section(readme_content, section_title, new_section_content):
     start_marker = f'<!-- START {section_title} -->'
     end_marker = f'<!-- END {section_title} -->'
-    
+
     pattern = re.compile(
         rf'{re.escape(start_marker)}(.*?){re.escape(end_marker)}',
         re.DOTALL | re.IGNORECASE
     )
-    
+
     match = pattern.search(readme_content)
-    
+
     if match:
         section_content = match.group(1)
         if '<!-- SKIP -->' in section_content:
@@ -357,7 +354,7 @@ def update_readme_section(readme_content, section_title, new_section_content):
         # Ensure there's a newline before adding the new section
         if not readme_content.endswith('\n'):
             readme_content += '\n'
-        updated_section = f'\n{start_marker}\n### {section_title}\n\n{new_section_content.rstrip()}\n{end_marker}\n'
+        updated_section = f'{start_marker}\n{new_section_content.rstrip()}\n{end_marker}\n'
         updated_readme = readme_content + updated_section
     return updated_readme
 
@@ -369,23 +366,22 @@ if __name__ == "__main__":
     project_directory = os.path.abspath("./")
     results = read_files_in_directory(project_directory)
 
-    # Generate markdown sections without titles
     # Remove duplicates from interfaces and base classes while preserving order
     unique_interfaces = remove_duplicates_preserve_order(results["interfaces"])
     unique_base_classes = remove_duplicates_preserve_order(results["base_classes"])
 
-    # Generate markdown sections without titles using the deduplicated lists
-    interfaces_markdown = generate_markdown_list(unique_interfaces)
-    base_classes_markdown = generate_markdown_list(unique_base_classes)
-    supported_types_markdown = generate_markdown_list(results["supported_types"])
-    minimum_versions_markdown = generate_markdown_list(results["minimum_versions"])
-    public_methods_markdown = generate_markdown_list(results["public_methods"])
+    # Generate markdown sections with titles using the deduplicated lists
+    interfaces_markdown = generate_markdown_list(unique_interfaces, "Interfaces Implemented")
+    base_classes_markdown = generate_markdown_list(unique_base_classes, "Base Classes")
+    supported_types_markdown = generate_markdown_list(results["supported_types"], "Supported Types")
+    minimum_versions_markdown = generate_markdown_list(results["minimum_versions"], "Minimum Essentials Framework Versions")
+    public_methods_markdown = generate_markdown_list(results["public_methods"], "Public Methods")
 
     # Generate Join Maps markdown
     class_names = read_class_names_from_files(project_directory)
     joinmap_classes = find_joinmap_classes(class_names)
     joinmap_info = [parse_joinmap_info(cls, project_directory) for cls in joinmap_classes]
-    join_maps_markdown = generate_markdown_chart([j for sublist in joinmap_info for j in sublist])
+    join_maps_markdown = generate_markdown_chart([j for sublist in joinmap_info for j in sublist], "Join Maps")
 
     # Generate Config Example markdown
     class_defs = parse_all_classes(project_directory)
@@ -402,7 +398,7 @@ if __name__ == "__main__":
     readme_path = os.path.join(project_directory, 'README.md')
     readme_content = read_readme_file(readme_path)
 
-    # Update or insert sections with section titles handled in update_readme_section
+    # Update or insert sections with section titles handled in the content
     readme_content = update_readme_section(readme_content, "Interfaces Implemented", interfaces_markdown)
     readme_content = update_readme_section(readme_content, "Base Classes", base_classes_markdown)
     readme_content = update_readme_section(readme_content, "Supported Types", supported_types_markdown)
@@ -417,3 +413,4 @@ if __name__ == "__main__":
         f.write(readme_content)
 
     print("README.md has been updated.")
+    
