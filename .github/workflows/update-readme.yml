@@ -2,6 +2,11 @@ name: Update README
 
 on:
   workflow_call:
+    inputs:
+      target-branch:
+        description: 'The branch to commit the README.md updates to.'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -14,7 +19,7 @@ jobs:
       - name: Checkout Caller Repository
         uses: actions/checkout@v3
         with:
-          ref: ${{ github.ref_name }}
+          ref: ${{ inputs.target-branch }}
           fetch-depth: 0
 
       - name: Checkout Reusable Workflow Repository
