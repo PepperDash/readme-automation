@@ -51,11 +51,14 @@ jobs:
             echo "no_changes=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Commit and Push Changes
-        if: steps.check_for_changes.outputs.no_changes == 'false'
+      - name: Create or Switch to 'robot-docs' Branch
+        run: |
+          git checkout -B robot-docs
+  
+      - name: Commit and Push Changes to 'robot-docs' Branch
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add README.md
-          git commit -m "Automated README update"
-          git push origin HEAD:${{ inputs.target-branch }}
+          git commit -m "Automated README update" || echo "No changes to commit"
+          git push origin robot-docs --force
