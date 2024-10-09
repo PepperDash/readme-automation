@@ -333,39 +333,24 @@ def read_readme_file(filepath):
         return f.read()
 
 def update_readme_section(readme_content, section_title, new_section_content):
-    """
-    Updates or inserts a section in the README content.
-
-    Parameters:
-    - readme_content (str): The original content of the README.md file.
-    - section_title (str): The title of the section to update or insert.
-    - new_section_content (str): The new content to place under the section.
-
-    Returns:
-    - str: The updated README content.
-    """
-    # Escape special characters in the section title for regex
-    escaped_section_title = re.escape(section_title)
-
-    # Regex pattern to find the section header (handles variable '#' levels and optional whitespace)
-    pattern = rf'^(#+\s*{escaped_section_title}\s*\n)(.*?)(?=^#+\s|\Z)'
-
-    # Flags for multiline, dotall, and case-insensitive matching
-    regex = re.compile(pattern, re.MULTILINE | re.DOTALL | re.IGNORECASE)
-
-    match = regex.search(readme_content)
-
+    start_marker = f'<!-- START {section_title} -->'
+    end_marker = f'<!-- END {section_title} -->'
+    
+    pattern = re.compile(
+        rf'{re.escape(start_marker)}(.*?){re.escape(end_marker)}',
+        re.DOTALL | re.IGNORECASE
+    )
+    
+    match = pattern.search(readme_content)
+    
     if match:
         print(f"Updating existing section: {section_title}")
-        start = match.start(2)
-        end = match.end(2)
-        updated_readme = readme_content[:start] + new_section_content + '\n' + readme_content[end:]
+        updated_section = f'{start_marker}\n{new_section_content.rstrip()}\n{end_marker}'
+        updated_readme = readme_content[:match.start()] + updated_section + readme_content[match.end():]
     else:
         print(f"Adding new section: {section_title}")
-        # Append the section at the end of the README content
-        if readme_content and not readme_content.endswith('\n'):
-            readme_content += '\n'
-        updated_readme = readme_content + f'### {section_title}\n\n' + new_section_content + '\n'
+        updated_section = f'\n{start_marker}\n### {section_title}\n\n{new_section_content.rstrip()}\n{end_marker}\n'
+        updated_readme = readme_content + updated_section
     return updated_readme
 
 def remove_duplicates_preserve_order(seq):
