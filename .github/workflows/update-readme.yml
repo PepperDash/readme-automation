@@ -11,55 +11,49 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Checkout the triggering branch
-      - name: Checkout Caller Repository at Triggering Branch
+      - name: Checkout Caller Repository
         uses: actions/checkout@v3
         with:
           ref: ${{ github.ref_name }}
           fetch-depth: 0
 
-      # Step 2: Set up Python environment
+      - name: Checkout Reusable Workflow Repository
+        uses: actions/checkout@v3
+        with:
+          repository: PepperDash/readme-automation
+          path: readme-automation
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.x'
 
-      # Step 3: Install dependencies if any
       - name: Install Python Dependencies
         run: |
           python -m pip install --upgrade pip
           # pip install -r requirements.txt
 
-      # Step 4: Run the script on the triggering branch
       - name: Run README Update Script
         run: |
-          python .github/scripts/metadata.py
+          python readme-automation/.github/scripts/metadata.py
 
-      # Step 5: Create or Switch to 'robot-docs' Branch and Merge Changes
-      - name: Create or Switch to 'robot-docs' Branch and Merge Changes
+      - name: Check for Changes
+        id: check_for_changes
         run: |
-          # Fetch all branches from the remote
-          git fetch origin
-
-          # Check if 'robot-docs' exists on remote
-          if git rev-parse --verify origin/robot-docs; then
-            # If it exists, check out the local 'robot-docs' branch
-            git checkout robot-docs
-            # Reset local 'robot-docs' to match remote
-            git reset --hard origin/robot-docs
+          if git diff --quiet; then
+            echo "no_changes=true" >> $GITHUB_OUTPUT
           else
-            # If it doesn't exist, create 'robot-docs' branch from current HEAD
-            git checkout -b robot-docs
+            echo "no_changes=false" >> $GITHUB_OUTPUT
           fi
 
-          # Merge the triggering branch into 'robot-docs'
-          git merge ${{ github.ref_name }} --no-edit
-
-      # Step 6: Commit and Push Changes to 'robot-docs' Branch
+      - name: Create or Switch to 'robot-docs' Branch
+        run: |
+          git checkout -B robot-docs
+  
       - name: Commit and Push Changes to 'robot-docs' Branch
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add README.md
           git commit -m "Automated README update" || echo "No changes to commit"
-          git push origin robot-docs
+          git push origin robot-docs --force
