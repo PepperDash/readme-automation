@@ -9,23 +9,24 @@ on:
         type: string
 
 permissions:
-  contents: write  # Ensure the workflow has write permissions
+  contents: write
 
 jobs:
   update-readme:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout Caller Repository
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # Fetch full history
-          ref: ${{ github.event.inputs.target-branch }}  # Checkout the target branch
+          ref: ${{ inputs.target-branch }}
+          fetch-depth: 0
 
-      - name: Set up Branch
-        run: |
-          git fetch origin ${{ github.event.inputs.target-branch }}:${{ github.event.inputs.target-branch }} || git checkout -b ${{ github.event.inputs.target-branch }}
-          git checkout ${{ github.event.inputs.target-branch }}
+      - name: Checkout Reusable Workflow Repository
+        uses: actions/checkout@v3
+        with:
+          repository: PepperDash/readme-automation
+          path: readme-automation
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -35,22 +36,18 @@ jobs:
       - name: Install Python Dependencies
         run: |
           python -m pip install --upgrade pip
-          # If your script requires specific packages, list them here
-          # For example: pip install regex json
+          # pip install -r requirements.txt
 
       - name: Run README Update Script
         run: |
-          python .github/scripts/metadata.py
-        working-directory: ${{ github.workspace }}
+          python readme-automation/.github/scripts/metadata.py
 
       - name: Check for Changes
         id: check_for_changes
         run: |
           if git diff --quiet; then
-            echo "No changes to commit."
             echo "no_changes=true" >> $GITHUB_OUTPUT
           else
-            echo "Changes detected."
             echo "no_changes=false" >> $GITHUB_OUTPUT
           fi
 
@@ -61,4 +58,4 @@ jobs:
           git config --local user.name "GitHub Action"
           git add README.md
           git commit -m "Automated README update"
-          git push origin HEAD:${{ github.event.inputs.target-branch }}
+          git push origin HEAD:${{ inputs.target-branch }}
