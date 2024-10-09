@@ -344,11 +344,19 @@ def update_readme_section(readme_content, section_title, new_section_content):
     match = pattern.search(readme_content)
     
     if match:
-        print(f"Updating existing section: {section_title}")
-        updated_section = f'{start_marker}\n{new_section_content.rstrip()}\n{end_marker}'
-        updated_readme = readme_content[:match.start()] + updated_section + readme_content[match.end():]
+        section_content = match.group(1)
+        if '<!-- SKIP -->' in section_content:
+            print(f"Skipping section: {section_title} (found <!-- SKIP -->)")
+            return readme_content  # Return the original content unchanged
+        else:
+            print(f"Updating existing section: {section_title}")
+            updated_section = f'{start_marker}\n{new_section_content.rstrip()}\n{end_marker}'
+            updated_readme = readme_content[:match.start()] + updated_section + readme_content[match.end():]
     else:
         print(f"Adding new section: {section_title}")
+        # Ensure there's a newline before adding the new section
+        if not readme_content.endswith('\n'):
+            readme_content += '\n'
         updated_section = f'\n{start_marker}\n### {section_title}\n\n{new_section_content.rstrip()}\n{end_marker}\n'
         updated_readme = readme_content + updated_section
     return updated_readme
