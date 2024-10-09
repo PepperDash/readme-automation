@@ -13,7 +13,7 @@ def extract_implemented_interfaces(file_content):
     return [], []
 
 def extract_supported_types(file_content):
-    types_pattern = re.compile(r'TypeNames\s*=\s*new\s*List<string>\(\)\s*{([^}]+)}')
+    types_pattern = re.compile(r'TypeNames\s*=\s*new\s*List<string>(?:\(\))?\s*{([^}]+)}')
     match = types_pattern.search(file_content)
     if match:
         types = [type_name.strip().strip('"') for type_name in match.group(1).split(',')]
