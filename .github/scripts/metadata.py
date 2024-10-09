@@ -122,16 +122,20 @@ def parse_joinmap_info(class_name, root_directory):
         file_content = file.read()
 
     join_pattern = re.compile(
-        r'public\s+JoinDataComplete\s+\w+\s*=\s*new\s+JoinDataComplete\(\s*new\s+JoinData\s*{[^}]*JoinNumber\s*=\s*(\d+)[^}]*}\s*,\s*new\s+JoinMetadata\s*{[^}]*Description\s*=\s*"([^"]+)"[^}]*JoinType\s*=\s*eJoinType\.(\w+)',
+        r'\[JoinName\("(?P<join_name>[^"]+)"\)\]\s*'
+        r'public\s+JoinDataComplete\s+(?P<property_name>\w+)\s*=\s*new\s+JoinDataComplete\(\s*'
+        r'new\s+JoinData\s*\{[^}]*JoinNumber\s*=\s*(?P<join_number>\d+)[^}]*\}\s*,\s*'
+        r'new\s+JoinMetadata\s*\{[^}]*Description\s*=\s*"(?P<description>[^"]+)"[^}]*JoinType\s*=\s*eJoinType\.(?P<join_type>\w+)[^}]*\}\s*\)',
         re.DOTALL
     )
 
     joinmap_info = []
-    for join_number, description, join_type in join_pattern.findall(file_content):
+    for match in join_pattern.finditer(file_content):
         joinmap_info.append({
-            "join_number": join_number,
-            "type": join_type,
-            "description": description
+            "name": match.group('join_name'),
+            "join_number": match.group('join_number'),
+            "type": match.group('join_type'),
+            "description": match.group('description')
         })
 
     return joinmap_info
