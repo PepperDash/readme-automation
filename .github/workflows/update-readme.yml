@@ -1,0 +1,64 @@
+name: Update README
+
+on:
+  workflow_call:
+    inputs:
+      target-branch:
+        description: 'The branch to commit the README.md updates to.'
+        required: true
+        type: string
+
+permissions:
+  contents: write  # Ensure the workflow has write permissions
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Fetch full history
+          ref: ${{ github.event.inputs.target-branch }}  # Checkout the target branch
+
+      - name: Set up Branch
+        run: |
+          git fetch origin ${{ github.event.inputs.target-branch }}:${{ github.event.inputs.target-branch }} || git checkout -b ${{ github.event.inputs.target-branch }}
+          git checkout ${{ github.event.inputs.target-branch }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # If your script requires specific packages, list them here
+          # For example: pip install regex json
+
+      - name: Run README Update Script
+        run: |
+          python .github/scripts/metadata.py
+        working-directory: ${{ github.workspace }}
+
+      - name: Check for Changes
+        id: check_for_changes
+        run: |
+          if git diff --quiet; then
+            echo "No changes to commit."
+            echo "no_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "Changes detected."
+            echo "no_changes=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit and Push Changes
+        if: steps.check_for_changes.outputs.no_changes == 'false'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add README.md
+          git commit -m "Automated README update"
+          git push origin HEAD:${{ github.event.inputs.target-branch }}
