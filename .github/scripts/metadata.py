@@ -32,22 +32,6 @@ def extract_public_methods(file_content):
     matches = methods_pattern.findall(file_content)
     return [match.strip() for match in matches]
 
-def extract_join_map(file_content):
-    join_pattern = re.compile(
-        r'public\s+JoinDataComplete\s+(\w+)\s*=\s*new\s+JoinDataComplete\([^)]*\)\s*{[^}]*Description\s*=\s*"([^"]+)"[^}]*JoinType\s*=\s*eJoinType\.(\w+)[^}]*JoinNumber\s*=\s*(\d+)',
-        re.DOTALL
-    )
-
-    joins = []
-    for join_name, description, join_type, join_number in join_pattern.findall(file_content):
-        joins.append({
-            "name": join_name,
-            "description": description,
-            "type": join_type,
-            "join_number": join_number
-        })
-    return joins
-
 def read_files_in_directory(directory):
     all_interfaces = []
     all_base_classes = []
@@ -66,7 +50,6 @@ def read_files_in_directory(directory):
                     supported_types = extract_supported_types(content)
                     minimum_version = extract_minimum_essentials_framework_version(content)
                     public_methods = extract_public_methods(content)
-                    joins = extract_join_map(content)
 
                     all_interfaces.extend(interfaces)
                     all_base_classes.extend(base_classes)
@@ -74,33 +57,48 @@ def read_files_in_directory(directory):
                     if minimum_version:
                         all_minimum_versions.append(minimum_version)
                     all_public_methods.extend(public_methods)
-                    all_joins.extend(joins)
 
     return {
         "interfaces": all_interfaces,
         "base_classes": all_base_classes,
         "supported_types": all_supported_types,
         "minimum_versions": all_minimum_versions,
-        "public_methods": all_public_methods,
-        "joins": all_joins
+        "public_methods": all_public_methods
     }
 
-def find_joinmap_classes(class_names):
-    return [class_name for class_name in class_names if class_name.endswith('JoinMap')]
-
-def read_class_names_from_files(directory):
-    class_names = []
-    class_pattern = re.compile(r'^\s*(?:\[[^\]]+\]\s*)*(?:public\s+|private\s+|protected\s+)?class\s+([A-Za-z_]\w*)\b', re.MULTILINE)
-
+def read_class_names_and_bases_from_files(directory):
+    class_defs = {}
+    class_pattern = re.compile(
+        r'^\s*(?:\[[^\]]+\]\s*)*'        # Optional attributes
+        r'(?:public\s+|private\s+|protected\s+)?'  # Optional access modifier
+        r'(?:partial\s+)?'                # Optional 'partial' keyword
+        r'class\s+([A-Za-z_]\w*)'         # Class name
+        r'(?:\s*:\s*([^\{]+))?'           # Optional base classes
+        r'\s*\{',                         # Opening brace
+        re.MULTILINE
+    )
     for root, _, files in os.walk(directory):
         for file in files:
             if file.endswith('.cs'):
                 file_path = os.path.join(root, file)
                 with open(file_path, 'r', encoding='utf-8') as f:
                     content = f.read()
-                    class_names.extend(class_pattern.findall(content))
+                    for match in class_pattern.finditer(content):
+                        class_name = match.group(1)
+                        bases = match.group(2)
+                        if bases:
+                            base_classes = [b.strip() for b in bases.split(',')]
+                        else:
+                            base_classes = []
+                        class_defs[class_name] = base_classes
+    return class_defs
 
-    return class_names
+def find_joinmap_classes(class_defs):
+    joinmap_classes = []
+    for class_name, base_classes in class_defs.items():
+        if 'JoinMapBaseAdvanced' in base_classes:
+            joinmap_classes.append(class_name)
+    return joinmap_classes
 
 def find_file_in_directory(filename, root_directory):
     for root, _, files in os.walk(root_directory):
@@ -122,50 +120,74 @@ def parse_joinmap_info(class_name, root_directory):
         file_content = file.read()
 
     join_pattern = re.compile(
-        r'\[JoinName\("(?P<join_name>[^"]+)"\)\]\s*'
-        r'public\s+JoinDataComplete\s+(?P<property_name>\w+)\s*=\s*new\s+JoinDataComplete\(\s*'
-        r'new\s+JoinData\s*\{[^}]*JoinNumber\s*=\s*(?P<join_number>\d+)[^}]*\}\s*,\s*'
-        r'new\s+JoinMetadata\s*\{[^}]*Description\s*=\s*"(?P<description>[^"]+)"[^}]*JoinType\s*=\s*eJoinType\.(?P<join_type>\w+)[^}]*\}\s*\)',
+        r'\[JoinName\("(?P<join_name>[^"]+)"\)\]\s*'  # Match the [JoinName("...")] attribute
+        r'public\s+JoinDataComplete\s+(?P<property_name>\w+)\s*=\s*'  # Match the property declaration
+        r'new\s+JoinDataComplete\s*\('  # Match 'new JoinDataComplete('
+        r'\s*new\s+JoinData\s*\{(?P<join_data>[^\}]+)\}\s*,'  # Match 'new JoinData { ... },'
+        r'\s*new\s+JoinMetadata\s*\{(?P<join_metadata>[^\}]+)\}\s*'  # Match 'new JoinMetadata { ... }'
+        r'\)',  # Match closing parenthesis of new JoinDataComplete
         re.DOTALL
     )
 
     joinmap_info = []
     for match in join_pattern.finditer(file_content):
+        join_name = match.group('join_name')
+        property_name = match.group('property_name')
+        join_data = match.group('join_data')
+        join_metadata = match.group('join_metadata')
+
+        # Now parse join_data and join_metadata to extract join_number, description, join_type, etc.
+
+        # Extract join_number from join_data
+        join_number_match = re.search(r'JoinNumber\s*=\s*(\d+)', join_data)
+        if join_number_match:
+            join_number = join_number_match.group(1)
+        else:
+            join_number = None
+
+        # Extract description and join_type from join_metadata
+        description_match = re.search(r'Description\s*=\s*"([^"]+)"', join_metadata)
+        if description_match:
+            description = description_match.group(1)
+        else:
+            description = None
+
+        join_type_match = re.search(r'JoinType\s*=\s*eJoinType\.(\w+)', join_metadata)
+        if join_type_match:
+            join_type = join_type_match.group(1)
+        else:
+            join_type = None
+
         joinmap_info.append({
-            "name": match.group('join_name'),
-            "join_number": match.group('join_number'),
-            "type": match.group('join_type'),
-            "description": match.group('description')
+            "name": join_name,
+            "join_number": join_number,
+            "type": join_type,
+            "description": description
         })
 
     return joinmap_info
 
 def generate_markdown_chart(joins, section_title):
+    if not joins:
+        return ''
     markdown_chart = f'### {section_title}\n\n'
 
-    # Digitals
-    markdown_chart += "#### Digitals\n\n"
-    markdown_chart += "| Join | Type (RW) | Description |\n"
-    markdown_chart += "| --- | --- | --- |\n"
+    # Group joins by type
+    joins_by_type = {'Digital': [], 'Analog': [], 'Serial': []}
     for join in joins:
-        if join["type"] == "Digital":
-            markdown_chart += f"| {join['join_number']} | R | {join['description']} |\n"
+        if join['type'] in joins_by_type:
+            joins_by_type[join['type']].append(join)
+        else:
+            joins_by_type['Digital'].append(join)  # Default to Digital if type not recognized
 
-    # Analogs
-    markdown_chart += "\n#### Analogs\n\n"
-    markdown_chart += "| Join | Type (RW) | Description |\n"
-    markdown_chart += "| --- | --- | --- |\n"
-    for join in joins:
-        if join["type"] == "Analog":
-            markdown_chart += f"| {join['join_number']} | R | {join['description']} |\n"
-
-    # Serials
-    markdown_chart += "\n#### Serials\n\n"
-    markdown_chart += "| Join | Type (RW) | Description |\n"
-    markdown_chart += "| --- | --- | --- |\n"
-    for join in joins:
-        if join["type"] == "Serial":
-            markdown_chart += f"| {join['join_number']} | R | {join['description']} |\n"
+    for join_type in ['Digital', 'Analog', 'Serial']:
+        if joins_by_type[join_type]:
+            markdown_chart += f"#### {join_type}s\n\n"
+            markdown_chart += "| Join | Type (RW) | Description |\n"
+            markdown_chart += "| --- | --- | --- |\n"
+            for join in joins_by_type[join_type]:
+                markdown_chart += f"| {join['join_number']} | R | {join['description']} |\n"
+            markdown_chart += '\n'
     return markdown_chart
 
 def generate_config_example_markdown(sample_config):
@@ -186,31 +208,20 @@ def generate_markdown_list(items, section_title):
     Returns:
     - str: The markdown content with the section header.
     """
+    if not items:
+        return ''
     markdown = f'### {section_title}\n\n'
     for item in items:
         markdown += f"- {item}\n"
     markdown += '\n'
     return markdown
 
-def find_config_classes(directory):
-    config_classes = {}
-    class_pattern = re.compile(r'^\s*(?:\[[^\]]+\]\s*)*(?:public\s+|private\s+|protected\s+)?class\s+([A-Za-z_]\w*Config)\b', re.MULTILINE)
-    for root, _, files in os.walk(directory):
-        for file in files:
-            if file.endswith('.cs'):
-                file_path = os.path.join(root, file)
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    matches = class_pattern.findall(content)
-                    for class_name in matches:
-                        config_classes[class_name] = file_path
-    return config_classes
-
 def parse_all_classes(directory):
     class_defs = {}
     class_pattern = re.compile(
         r'^\s*(?:\[[^\]]+\]\s*)*'      # Optional attributes
         r'(?:public\s+|private\s+|protected\s+)?'  # Access modifier
+        r'(?:partial\s+)?'                # Optional 'partial' keyword
         r'class\s+([A-Za-z_]\w*)'       # Class name
         r'(?:\s*:\s*[^\{]+)?'           # Optional inheritance
         r'\s*\{',                       # Opening brace
@@ -382,20 +393,23 @@ if __name__ == "__main__":
     public_methods_markdown = generate_markdown_list(results["public_methods"], "Public Methods")
 
     # Generate Join Maps markdown
-    class_names = read_class_names_from_files(project_directory)
-    joinmap_classes = find_joinmap_classes(class_names)
-    joinmap_info = [parse_joinmap_info(cls, project_directory) for cls in joinmap_classes]
-    join_maps_markdown = generate_markdown_chart([j for sublist in joinmap_info for j in sublist], "Join Maps")
+    class_defs = read_class_names_and_bases_from_files(project_directory)
+    joinmap_classes = find_joinmap_classes(class_defs)
+    joinmap_info = []
+    for cls in joinmap_classes:
+        info = parse_joinmap_info(cls, project_directory)
+        joinmap_info.extend(info)
+    join_maps_markdown = generate_markdown_chart(joinmap_info, "Join Maps")
 
     # Generate Config Example markdown
-    class_defs = parse_all_classes(project_directory)
-    config_classes = [cls for cls in class_defs if cls.endswith('Config')]
+    all_class_defs = parse_all_classes(project_directory)
+    config_classes = [cls for cls in all_class_defs if cls.endswith('Config')]
     if not config_classes:
         print("No config classes found.")
         config_example_markdown = ""
     else:
-        main_config_class = max(config_classes, key=lambda cls: len(class_defs[cls]))
-        sample_config = generate_sample_config(main_config_class, class_defs, results["supported_types"])
+        main_config_class = max(config_classes, key=lambda cls: len(all_class_defs[cls]))
+        sample_config = generate_sample_config(main_config_class, all_class_defs, results["supported_types"])
         config_example_markdown = generate_config_example_markdown(sample_config)
 
     # Read the existing README.md content
@@ -417,4 +431,3 @@ if __name__ == "__main__":
         f.write(readme_content)
 
     print("README.md has been updated.")
-    
