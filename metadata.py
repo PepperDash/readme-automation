@@ -103,39 +103,14 @@ def read_class_names_from_files(directory):
     return class_names
 
 def find_file_in_directory(filename, root_directory):
-    """
-    Recursively searches for a file within all subdirectories of a root directory.
-
-    Parameters:
-    - filename (str): The name of the file to find.
-    - root_directory (str): The root directory to start the search from.
-
-    Returns:
-    - str: The full path of the file if found; otherwise, None.
-    """
-    print(f"Starting search in root directory: {root_directory}")  # Debug statement
     for root, _, files in os.walk(root_directory):
         for file in files:
-            # Debug output to confirm traversal
-            # print(f"Checking file: {file} in {root}")  # Debug statement
             if file == filename:
                 full_path = os.path.join(root, file)
-                print(f"Found file '{filename}' at: {full_path}")  # Debug statement
                 return full_path
-    print(f"File '{filename}' not found in any subdirectory of {root_directory}")
     return None
 
 def parse_joinmap_info(class_name, root_directory):
-    """
-    Parses all JoinDataComplete entries from the specified file for a given class name.
-
-    Parameters:
-    - class_name (str): The name of the class to parse.
-    - root_directory (str): The root directory to search for the file.
-
-    Returns:
-    - list of dict: Each dictionary contains 'join_number', 'type', and 'description' for each join.
-    """
     filename = f"{class_name}.cs"
     file_path = find_file_in_directory(filename, root_directory)
 
@@ -161,48 +136,55 @@ def parse_joinmap_info(class_name, root_directory):
 
     return joinmap_info
 
-
 def generate_markdown_chart(joins):
     markdown_chart = ""
-
-    markdown_chart += "### Digitals\n\n"
-    markdown_chart += "| Join |  Type (RW) | Description|\n"
-    markdown_chart += "| --- | --- |  ---| \n"
+    
+    # Digitals
+    markdown_chart += "#### Digitals\n\n"
+    markdown_chart += "| Join | Type (RW) | Description |\n"
+    markdown_chart += "| --- | --- | --- |\n"
     for join in joins:
         if join["type"] == "Digital":
             markdown_chart += f"| {join['join_number']} | R | {join['description']} |\n"
-
-    markdown_chart += "\n### Analogs\n\n"
+    
+    # Analogs
+    markdown_chart += "\n#### Analogs\n\n"
     markdown_chart += "| Join | Type (RW) | Description |\n"
     markdown_chart += "| --- | --- | --- |\n"
     for join in joins:
         if join["type"] == "Analog":
-            markdown_chart += f"| {join['join_number']} | R | {join['description']}\n"
-
-    markdown_chart += "\n### Serials\n\n"
+            markdown_chart += f"| {join['join_number']} | R | {join['description']} |\n"
+    
+    # Serials
+    markdown_chart += "\n#### Serials\n\n"
     markdown_chart += "| Join | Type (RW) | Description |\n"
-    markdown_chart += "| --- | --- |  ---|\n"
+    markdown_chart += "| --- | --- | --- |\n"
     for join in joins:
         if join["type"] == "Serial":
-            markdown_chart += f"| {join['join_number']} | R | {join['description']}|\n"
+            markdown_chart += f"| {join['join_number']} | R | {join['description']} |\n"
     return markdown_chart
 
-def print_markdown_list(title, items):
+def generate_config_example_markdown(sample_config):
+    markdown = ""
+    markdown += "```json\n"
+    markdown += json.dumps(sample_config, indent=4)
+    markdown += "\n```\n"
+    return markdown
+
+def generate_markdown_list(items):
     """
-    Prints a list of items in markdown format.
+    Generates a list of items in markdown format.
+    
+    Returns:
+    - str: The markdown content.
     """
-    print(f"### {title}:\n")
+    markdown = ''
     for item in items:
-        print(f"- {item}")
-    print()
+        markdown += f"- {item}\n"
+    markdown += '\n'
+    return markdown
 
 def find_config_classes(directory):
-    """
-    Finds all classes that end with 'Config' in .cs files in the given directory.
-
-    Returns:
-    - A dictionary mapping class names to their file paths.
-    """
     config_classes = {}
     class_pattern = re.compile(r'^\s*(?:\[[^\]]+\]\s*)*(?:public\s+|private\s+|protected\s+)?class\s+([A-Za-z_]\w*Config)\b', re.MULTILINE)
     for root, _, files in os.walk(directory):
@@ -215,58 +197,6 @@ def find_config_classes(directory):
                     for class_name in matches:
                         config_classes[class_name] = file_path
     return config_classes
-
-def parse_config_class(class_name, file_path):
-    """
-    Parses the properties of the given config class.
-
-    Returns:
-    - A list of dictionaries representing the class's properties.
-    """
-    with open(file_path, 'r', encoding='utf-8') as f:
-        content = f.read()
-    # Find the class definition
-    class_pattern = re.compile(r'class\s+' + re.escape(class_name) + r'\s*(?::\s*[^{]+)?\s*{(.*?)}', re.DOTALL)
-    match = class_pattern.search(content)
-    if not match:
-        print(f"Class {class_name} not found in {file_path}")
-        return None
-    class_body = match.group(1)
-    # Parse the properties
-    property_pattern = re.compile(
-        r'(?:\s*\[JsonProperty\("([^"]+)"\)\s*)?'  # Optional [JsonProperty("name")]
-        r'\s*(?:public|private|protected)\s+'      # Access modifier
-        r'([A-Za-z_<>,\s]+?)\s+'                   # Type (e.g., int, string, Dictionary<string, ApOutletConfig>)
-        r'([A-Za-z_]\w+)\s*'                       # Property name
-        r'{\s*get;\s*set;\s*}',                    # { get; set; }
-        re.MULTILINE
-    )
-    properties = []
-    for prop_match in property_pattern.finditer(class_body):
-        json_property_name = prop_match.group(1)
-        prop_type = prop_match.group(2).strip()
-        prop_name = prop_match.group(3)
-        properties.append({
-            "json_property_name": json_property_name if json_property_name else prop_name,
-            "property_name": prop_name,
-            "property_type": prop_type
-        })
-    return properties
-
-def extract_class_body(content, start_index):
-    """
-    Extracts the body of a class from the content, starting at start_index.
-    Returns the class body and the index where it ends.
-    """
-    brace_count = 1
-    index = start_index
-    while brace_count > 0 and index < len(content):
-        if content[index] == '{':
-            brace_count += 1
-        elif content[index] == '}':
-            brace_count -= 1
-        index += 1
-    return content[start_index:index - 1], index - 1
 
 def parse_all_classes(directory):
     class_defs = {}
@@ -283,10 +213,10 @@ def parse_all_classes(directory):
         r'(?:\[[^\]]*\]\s*)*'              # Optional attributes
         r'(?:public|private|protected)\s+'  # Access modifier
         r'(?:static\s+|virtual\s+|override\s+|abstract\s+|readonly\s+)?'  # Optional modifiers
-        r'([A-Za-z0-9_<>,\s\[\]]+?)\s+'     # Type
+        r'([A-Za-z0-9_<>,\s\[\]\?]+?)\s+'     # Type
         r'([A-Za-z_]\w*)\s*'                # Property name
         r'\{[^}]*?\}',                      # Property body
-        re.MULTILINE
+        re.MULTILINE | re.DOTALL
     )
     for root, _, files in os.walk(directory):
         for file in files:
@@ -303,8 +233,9 @@ def parse_all_classes(directory):
                         # Parse properties within the class body
                         properties = []
                         for prop_match in property_pattern.finditer(class_body):
-                            json_property_name = re.search(r'\[JsonProperty\("([^"]+)"\)\]', prop_match.group(0))
-                            json_property_name = json_property_name.group(1) if json_property_name else None
+                            prop_string = prop_match.group(0)
+                            json_property_match = re.search(r'\[JsonProperty\("([^"]+)"\)\]', prop_string)
+                            json_property_name = json_property_match.group(1) if json_property_match else None
                             prop_type = prop_match.group(1).strip()
                             prop_name = prop_match.group(2)
                             properties.append({
@@ -315,17 +246,22 @@ def parse_all_classes(directory):
                         class_defs[class_name] = properties
     return class_defs
 
+def extract_class_body(content, start_index):
+    """
+    Extracts the body of a class from the content, starting at start_index.
+    Returns the class body and the index where it ends.
+    """
+    brace_count = 1
+    index = start_index
+    while brace_count > 0 and index < len(content):
+        if content[index] == '{':
+            brace_count += 1
+        elif content[index] == '}':
+            brace_count -= 1
+        index += 1
+    return content[start_index:index - 1], index - 1
+
 def generate_sample_value(property_type, class_defs, processed_classes=None):
-    """
-    Generates a sample value for the given property type.
-
-    Parameters:
-    - property_type (str): The type of the property.
-    - class_defs (dict): Dictionary of class definitions parsed.
-
-    Returns:
-    - A sample value for the property.
-    """
     if processed_classes is None:
         processed_classes = set()
     property_type = property_type.strip()
@@ -345,7 +281,6 @@ def generate_sample_value(property_type, class_defs, processed_classes=None):
         inner_type = property_type[property_type.find('<')+1:-1]
         return [generate_sample_value(inner_type, class_defs, processed_classes)]
     elif property_type.startswith('Dictionary<'):
-        # e.g., Dictionary<string, ApOutletConfig>
         types = property_type[property_type.find('<')+1:-1].split(',')
         key_type = types[0].strip()
         value_type = types[1].strip()
@@ -355,7 +290,6 @@ def generate_sample_value(property_type, class_defs, processed_classes=None):
     # Handle custom classes
     elif property_type in class_defs:
         if property_type in processed_classes:
-            # Avoid infinite recursion
             return {}
         processed_classes.add(property_type)
         properties = class_defs[property_type]
@@ -371,19 +305,6 @@ def generate_sample_value(property_type, class_defs, processed_classes=None):
         return "SampleValue"
 
 def generate_sample_config(config_class_name, class_defs, supported_types):
-    """
-    Generates a sample config JSON object for the given config class.
-
-    Parameters:
-    - config_class_name (str): The name of the config class.
-    - class_defs (dict): Dictionary of class definitions.
-    - supported_types (list): List of supported types.
-
-    Returns:
-    - A dictionary representing the sample config JSON.
-    """
-    # Map the config class name to the supported type
-    # Assumes that the supported type is the config class name without 'Config'
     type_name = config_class_name[:-6]  # Remove 'Config'
     if type_name not in supported_types:
         type_name = supported_types[0] if supported_types else type_name
@@ -397,39 +318,100 @@ def generate_sample_config(config_class_name, class_defs, supported_types):
     }
     return config
 
+def generate_config_example_markdown(sample_config):
+    markdown = "### Config Example:\n\n"
+    markdown += "```json\n"
+    markdown += json.dumps(sample_config, indent=4)
+    markdown += "\n```\n"
+    return markdown
+
+def read_readme_file(filepath):
+    if not os.path.exists(filepath):
+        print(f"README.md file not found at {filepath}. A new file will be created.")
+        return ""
+    with open(filepath, 'r', encoding='utf-8') as f:
+        return f.read()
+
+def update_readme_section(readme_content, section_title, new_section_content):
+    """
+    Updates or inserts a section in the README content.
+
+    Parameters:
+    - readme_content (str): The original content of the README.md file.
+    - section_title (str): The title of the section to update or insert.
+    - new_section_content (str): The new content to place under the section.
+
+    Returns:
+    - str: The updated README content.
+    """
+    # Escape special characters in the section title for regex
+    escaped_section_title = re.escape(section_title)
+
+    # Regex pattern to find the section header (handles variable '#' levels and optional whitespace)
+    pattern = rf'^(#+\s*{escaped_section_title}\s*\n)(.*?)(?=^#+\s|\Z)'
+
+    # Flags for multiline, dotall, and case-insensitive matching
+    regex = re.compile(pattern, re.MULTILINE | re.DOTALL | re.IGNORECASE)
+
+    match = regex.search(readme_content)
+
+    if match:
+        print(f"Updating existing section: {section_title}")
+        start = match.start(2)
+        end = match.end(2)
+        updated_readme = readme_content[:start] + new_section_content + '\n' + readme_content[end:]
+    else:
+        print(f"Adding new section: {section_title}")
+        # Append the section at the end of the README content
+        if readme_content and not readme_content.endswith('\n'):
+            readme_content += '\n'
+        updated_readme = readme_content + f'### {section_title}\n\n' + new_section_content + '\n'
+    return updated_readme
+
 if __name__ == "__main__":
     project_directory = os.path.abspath("./")
     results = read_files_in_directory(project_directory)
-
-    # Existing code to print markdown lists
-    print_markdown_list("Interfaces Implemented", results["interfaces"])
-    print_markdown_list("Base Classes", results["base_classes"])
-    print_markdown_list("Supported Types", results["supported_types"])
-    print_markdown_list("Minimum Essentials Framework Versions", results["minimum_versions"])
-    print_markdown_list("Public Methods", results["public_methods"])
-
-    # Identify Join Map Classes and Parse Information
+    
+    # Generate markdown sections without titles
+    interfaces_markdown = generate_markdown_list(results["interfaces"])
+    base_classes_markdown = generate_markdown_list(results["base_classes"])
+    supported_types_markdown = generate_markdown_list(results["supported_types"])
+    minimum_versions_markdown = generate_markdown_list(results["minimum_versions"])
+    public_methods_markdown = generate_markdown_list(results["public_methods"])
+    
+    # Generate Join Maps markdown
     class_names = read_class_names_from_files(project_directory)
     joinmap_classes = find_joinmap_classes(class_names)
     joinmap_info = [parse_joinmap_info(cls, project_directory) for cls in joinmap_classes]
-
-    # Print join maps in table format
-    markdown_chart = generate_markdown_chart([j for sublist in joinmap_info for j in sublist])
-    print("\n### Join Maps:\n", markdown_chart)
-
-    # Generate Config Example
-    # Parse all classes in the project
+    join_maps_markdown = generate_markdown_chart([j for sublist in joinmap_info for j in sublist])
+    
+    # Generate Config Example markdown
     class_defs = parse_all_classes(project_directory)
-
-    # Identify the main config class (assuming it's the one with the most properties)
     config_classes = [cls for cls in class_defs if cls.endswith('Config')]
     if not config_classes:
         print("No config classes found.")
+        config_example_markdown = ""
     else:
         main_config_class = max(config_classes, key=lambda cls: len(class_defs[cls]))
-
         sample_config = generate_sample_config(main_config_class, class_defs, results["supported_types"])
-        print("\n### Config Example:\n")
-        print("```json")
-        print(json.dumps(sample_config, indent=4))
-        print("```")
+        config_example_markdown = generate_config_example_markdown(sample_config)
+    
+    # Read the existing README.md content
+    readme_path = os.path.join(project_directory, 'README.md')
+    readme_content = read_readme_file(readme_path)
+    
+    # Update or insert sections with section titles handled in update_readme_section
+    readme_content = update_readme_section(readme_content, "Interfaces Implemented", interfaces_markdown)
+    readme_content = update_readme_section(readme_content, "Base Classes", base_classes_markdown)
+    readme_content = update_readme_section(readme_content, "Supported Types", supported_types_markdown)
+    readme_content = update_readme_section(readme_content, "Minimum Essentials Framework Versions", minimum_versions_markdown)
+    readme_content = update_readme_section(readme_content, "Public Methods", public_methods_markdown)
+    readme_content = update_readme_section(readme_content, "Join Maps", join_maps_markdown)
+    if config_example_markdown:
+        readme_content = update_readme_section(readme_content, "Config Example", config_example_markdown)
+    
+    # Write the updated content back to README.md
+    with open(readme_path, 'w', encoding='utf-8') as f:
+        f.write(readme_content)
+    
+    print("README.md has been updated.")
