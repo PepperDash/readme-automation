@@ -19,10 +19,14 @@ jobs:
       - name: Checkout Caller Repository
         uses: actions/checkout@v3
         with:
-          repository: ${{ github.event.repository.full_name }}
           ref: ${{ inputs.target-branch }}
-          token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
+
+      - name: Checkout Reusable Workflow Repository
+        uses: actions/checkout@v3
+        with:
+          repository: PepperDash/readme-automation
+          path: readme-automation
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -32,12 +36,11 @@ jobs:
       - name: Install Python Dependencies
         run: |
           python -m pip install --upgrade pip
-          # If your script requires specific packages, install them here
           # pip install -r requirements.txt
 
       - name: Run README Update Script
         run: |
-          python .github/scripts/metadata.py
+          python readme-automation/.github/scripts/metadata.py
 
       - name: Check for Changes
         id: check_for_changes
