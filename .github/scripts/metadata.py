@@ -404,7 +404,7 @@ if __name__ == "__main__":
 
     # Generate Config Example markdown
     all_class_defs = parse_all_classes(project_directory)
-    config_classes = [cls for cls in all_class_defs if cls.endswith('Config')]
+    config_classes = [cls for cls in all_class_defs if cls.endswith('Config') or cls.endswith('ConfigObject')]
     if not config_classes:
         print("No config classes found.")
         config_example_markdown = ""
