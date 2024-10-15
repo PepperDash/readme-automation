@@ -13,12 +13,13 @@ def extract_implemented_interfaces(file_content):
     return [], []
 
 def extract_supported_types(file_content):
-    types_pattern = re.compile(r'TypeNames\s*=\s*new\s*List<string>(?:\(\))?\s*{([^}]+)}')
-    match = types_pattern.search(file_content)
-    if match:
-        types = [type_name.strip().strip('"') for type_name in match.group(1).split(',')]
-        return types
-    return []
+    types_pattern = re.compile(r'TypeNames\s*=\s*new\s*List<string>\(\)\s*{([^}]+)}')
+    matches = types_pattern.findall(file_content)
+    types = []
+    for match in matches:
+        current_types = [type_name.strip().strip('"') for type_name in match.split(',')]
+        types.extend(current_types)
+    return list(set(types))
 
 def extract_minimum_essentials_framework_version(file_content):
     # Update the regex to exclude comments or anything unnecessary.
