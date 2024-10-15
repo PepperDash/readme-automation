@@ -21,7 +21,8 @@ def extract_supported_types(file_content):
     return []
 
 def extract_minimum_essentials_framework_version(file_content):
-    version_pattern = re.compile(r'MinimumEssentialsFrameworkVersion\s*=\s*"([^"]+)"')
+    # Update the regex to exclude comments or anything unnecessary.
+    version_pattern = re.compile(r'^\s*MinimumEssentialsFrameworkVersion\s*=\s*"([^"]+)"\s*;', re.MULTILINE)
     match = version_pattern.search(file_content)
     if match:
         return match.group(1)
